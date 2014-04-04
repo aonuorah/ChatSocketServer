@@ -6,6 +6,7 @@
 
 package com.neno.classes;
 
+import com.neno.networking.ServerNew;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -16,6 +17,7 @@ import org.json.JSONObject;
 public class ServerResponse {
     public static final String ACTION_SEND_MESSAGE = "12";
     public static final String ACTION_CONTROL = "10";
+    public static final String ACTION_CONNECT = "11";
     
     public static final String SUCCESS = "200";
     public static final String NOT_IMPLEMENTED = "501";
@@ -39,6 +41,15 @@ public class ServerResponse {
         responseJSON = new JSONObject();
         putOnce(CODE, code);
     }
+    
+    public static ServerResponse ConnectionResponse(String status){
+        return new ServerResponse(ServerNew.RequestCodes.CONNECT).put(ServerNew.Keys.STATUS, status);
+    }
+    
+    public static ServerResponse IsAliveRequest(){
+        return new ServerResponse(ServerNew.ResponseCodes.IS_ALIVE);
+    }
+    
     
     public ServerResponse put(String key, String[] values){
         for(String value : values){
@@ -77,7 +88,7 @@ public class ServerResponse {
     public boolean has(String key){
         return responseJSON.has(key);
     }
-    
+        
     @Override
     public String toString(){
         return responseJSON.toString() + "\r\n";

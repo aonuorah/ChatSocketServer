@@ -14,11 +14,14 @@ import java.net.Socket;
 import java.util.HashMap;
 import com.neno.classes.ServerResponse;
 import com.neno.models.Socket_c;
+import com.neno.models.SocketRespondedListener;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Map;
 import java.util.Timer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -29,34 +32,102 @@ import org.json.JSONObject;
 public class ServerNew implements Runnable{
     private static HashMap<String, Socket_c> mSockets = new HashMap();
     private static HashMap<String, Socket> activeSockets = new HashMap();
-    private Socket socket;
+    private final Socket_c mSocket;
     Timer checkAliveTimeoutTimer;
     
     public ServerNew(Socket _socket){
-        socket = _socket;
+        mSocket = new Socket_c(_socket);
     }
     
     @Override
     public void run() {
         try{
-            init(socket);
+            init2();
         }catch(IOException ex){
             System.out.println(ex.getMessage());
         }
     }
     
-    private void init(Socket _socket)throws IOException{
+    private void init2()throws IOException{
         ServerResponse response = new ServerResponse(ServerResponse.CONNECTION_REQUEST);;
+        System.out.println("Connection received from " + mSocket.socket().getInetAddress());
+        String[] command;
+        String socket_id = "";
+        boolean connectionIsValid = false;
+        
+        mSocket.addListener(new SocketRespondedListener(true){
+            @Override
+            public void postResponse(String response){
+                super.postResponse(response);
+                processConnectionRequest(this, response);
+                        
+            }
+        }).read();
+    }
+    /*
+    {"code":"11","name":"a"}
+    {"code":"909","status":"200"}
+    */
+    private void processConnectionRequest(final SocketRespondedListener l, String response){
+        boolean closeSocket = true;
+        try {
+            JSONObject jsonResponse = new JSONObject(response);
+            if(jsonResponse.getString(Keys.CODE).equals(RequestCodes.CONNECT)){
+                final String name = jsonResponse.getString(Keys.NAME).trim();
+                if(!name.isEmpty()){
+                    closeSocket = false;
+                    if(!mSockets.containsKey(name)){
+                        mSockets.put(name, mSocket);
+                        l.postReply(ServerResponse.ConnectionResponse(StatusCodes.SUCCESS).toString());
+                    }else{
+                        mSockets.get(name).addListener(new SocketRespondedListener(true){
+                            @Override
+                            public void postResponse(String response){
+                                super.postResponse(response);
+                                try {
+                                    JSONObject jsonResponse2 = new JSONObject(response);
+                                    if(jsonResponse2.getString(Keys.CODE).equals(ResponseCodes.IS_ALIVE)){
+                                        if(jsonResponse2.getString(Keys.STATUS).equals(StatusCodes.SUCCESS)){
+                                            l.postReply(ServerResponse.ConnectionResponse(StatusCodes.UNAUTHORIZED).toString());
+                                            mSocket.socket().close();
+                                        }else{
+                                            mSockets.get(name).socket().close();
+                                            l.postReply(ServerResponse.ConnectionResponse(StatusCodes.SUCCESS).toString());
+                                            mSockets.put(name, mSocket);
+                                        }
+                                    }
+                                } catch (JSONException | IOException ex) {
+                                    Logger.getLogger(ServerNew.class.getName()).log(Level.SEVERE, null, ex);
+                                }
+                            }
+                        }).Send(ServerResponse.IsAliveRequest().toString())
+                          .read();
+                    }
+                }
+            }
+        } catch (JSONException ex) {}
+        
+        if(closeSocket){
+            try {
+                l.postReply(ServerResponse.ConnectionResponse(StatusCodes.NOT_IMPLEMENTED).toString());
+                mSocket.socket().close();
+            } catch (IOException ex) {
+                Logger.getLogger(ServerNew.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+    }
+    
+    private void init(Socket _socket)throws IOException{
+        /*ServerResponse response = new ServerResponse(ServerResponse.CONNECTION_REQUEST);;
         System.out.println("Connection received from " + socket.getInetAddress());
             
         String[] command;
         String socket_id = "";
         boolean connectionIsValid = false;
-        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));;
+        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
         
         try {
-            
             String commandLine = in.readLine();
             System.out.println(commandLine);
             command = commandLine.split(" ");
@@ -102,7 +173,7 @@ public class ServerNew implements Runnable{
             }else{
                 putOnline(socket, socket_id);
             }
-        }
+        }*/
     }
     
     private void putOnline(Socket _socket, String socket_id){
@@ -211,6 +282,36 @@ public class ServerNew implements Runnable{
     private boolean isAlive(Socket s){
         
         return true;
+    }
+    
+    
+    public class RequestCodes{
+        
+        public static final String SEND_MESSAGE = "12";
+        public static final String CONTROL = "10";
+        public static final String CONNECT = "11";
+    }
+    
+    public class ResponseCodes{
+        public static final String NEW_MESSAGE = "902";
+        public static final String SENT_MESSAGE_UPDATE = "903";
+        public static final String USER_UPDATE_ONLINE = "904";
+        public static final String USER_UPDATE_OFFLINE = "905";
+        public static final String IS_ALIVE = "909";
+    }
+    
+    public class StatusCodes{
+        public static final String SUCCESS = "200";
+        public static final String NOT_IMPLEMENTED = "501";
+        public static final String NOT_FOUND = "404";
+        public static final String UNAUTHORIZED = "401";
+        public static final String BAD_REQUEST = "400";
+    }
+    
+    public class Keys{
+        public static final String CODE = "code";
+        public static final String STATUS = "status";
+        public static final String NAME = "name";
     }
     
 }
