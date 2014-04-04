@@ -60,9 +60,8 @@ public class ServerNew implements Runnable{
             public void postResponse(String response){
                 super.postResponse(response);
                 processConnectionRequest(this, response);
-                        
             }
-        }).read();
+        }).Read();
     }
     /*
     {"code":"11","name":"a"}
@@ -82,10 +81,10 @@ public class ServerNew implements Runnable{
                     }else{
                         mSockets.get(name).addListener(new SocketRespondedListener(true){
                             @Override
-                            public void postResponse(String response){
-                                super.postResponse(response);
+                            public void postResponse(String response2){
+                                super.postResponse(response2);
                                 try {
-                                    JSONObject jsonResponse2 = new JSONObject(response);
+                                    JSONObject jsonResponse2 = new JSONObject(response2);
                                     if(jsonResponse2.getString(Keys.CODE).equals(ResponseCodes.IS_ALIVE)){
                                         if(jsonResponse2.getString(Keys.STATUS).equals(StatusCodes.SUCCESS)){
                                             l.postReply(ServerResponse.ConnectionResponse(StatusCodes.UNAUTHORIZED).toString());
@@ -101,7 +100,7 @@ public class ServerNew implements Runnable{
                                 }
                             }
                         }).Send(ServerResponse.IsAliveRequest().toString())
-                          .read();
+                          .Read(3);
                     }
                 }
             }
@@ -306,6 +305,7 @@ public class ServerNew implements Runnable{
         public static final String NOT_FOUND = "404";
         public static final String UNAUTHORIZED = "401";
         public static final String BAD_REQUEST = "400";
+        public static final String TIMEOUT = "408";
     }
     
     public class Keys{

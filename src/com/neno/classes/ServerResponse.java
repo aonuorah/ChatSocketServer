@@ -50,6 +50,10 @@ public class ServerResponse {
         return new ServerResponse(ServerNew.ResponseCodes.IS_ALIVE);
     }
     
+    public static ServerResponse IsAliveResponse(String status){
+        return new ServerResponse(ServerNew.ResponseCodes.IS_ALIVE).put(ServerNew.Keys.STATUS, status);
+    }
+    
     
     public ServerResponse put(String key, String[] values){
         for(String value : values){
