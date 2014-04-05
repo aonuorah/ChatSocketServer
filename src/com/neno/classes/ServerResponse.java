@@ -92,9 +92,13 @@ public class ServerResponse {
     public boolean has(String key){
         return responseJSON.has(key);
     }
+    
+    public JSONObject toJSONObject(){
+        return responseJSON;
+    }
         
     @Override
     public String toString(){
-        return responseJSON.toString() + "\r\n";
+        return responseJSON.toString();
     }
 }

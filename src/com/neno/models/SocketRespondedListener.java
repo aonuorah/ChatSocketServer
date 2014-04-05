@@ -6,16 +6,16 @@
 
 package com.neno.models;
 
-import java.io.PrintWriter;
+import org.json.JSONObject;
 
 /**
  *
  * @author nedu
  */
 public class SocketRespondedListener{
-    private boolean _once;
-    private int _id;
-    private PrintWriter _out;
+    protected boolean _once;
+    protected String _requestID;
+    private Socket_c _socket;
 
     public SocketRespondedListener(){
 
@@ -25,24 +25,26 @@ public class SocketRespondedListener{
         this._once = once;
     }
 
-    public void postResponse(String response){
+    public void postResponse(JSONObject response){
 
     }
     
-    public void postReply(String reply){
-        _out.println(reply);
-    }
-
     public boolean once(){
         return this._once;
     }
 
-    public int getID(){
-        return _id;
+    public String getRequestID(){
+        return _requestID;
     }
     
-    protected void bindSocket(PrintWriter out){
-        _out = out;
+    public void closeSocket(){
+        _socket.closeSocket();
     }
-
+    
+    protected void bindSocket(Socket_c socket){
+        _socket = socket;
+    }
+    
+    
+    
 }

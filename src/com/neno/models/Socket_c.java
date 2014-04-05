@@ -19,6 +19,8 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  *
@@ -29,16 +31,21 @@ public class Socket_c extends SocketRespondedListener{
     String mLastActivityStamp;
     PrintWriter mOut;
     BufferedReader mIn;
-    Timer checkAliveTimeoutTimer;
-    ArrayList<SocketRespondedListener> listeners = new ArrayList();
-    private boolean isReading;
     Timer mTimer;
+    TimerTask mCloseSocketTask;
+    boolean mTimerIsSet;
+    ArrayList<SocketRespondedListener> listeners ;
+    private boolean isReading;
+    private int mRequestID;
+    
     
     public Socket_c(Socket socket){
         try {
             mSocket = socket;
             mOut = new PrintWriter(mSocket.getOutputStream(), true);
             mIn = new BufferedReader(new InputStreamReader(mSocket.getInputStream()));
+            listeners = new ArrayList();
+            mTimer = new Timer();
         } catch (IOException ex) {
             Logger.getLogger(Socket_c.class.getName()).log(Level.SEVERE, null, ex);
         }
@@ -55,72 +62,105 @@ public class Socket_c extends SocketRespondedListener{
     private void read(int timeout){
         String line;
         try {
+            mTimerIsSet = false;
             if(timeout != 0){
-                mTimer = new Timer();
-                mTimer.schedule(new CloseSocketTask(), timeout);
+                mCloseSocketTask = new CloseSocketTask();
+                mTimer.schedule(mCloseSocketTask, timeout);
+                mTimerIsSet = true;
             }
             
             if(!isReading){
                 isReading = true;
                 while((line = mIn.readLine()) != null){
-                    try{
-                        mTimer.cancel();
-                    }catch(NullPointerException ex){}
+                    if(mTimerIsSet){
+                        mCloseSocketTask.cancel();
+                        mTimer.purge();
+                    }
                     
                     notifyOnRespondedListeners(line);
                 }
+                isReading = false;
             }
             
         } catch (IOException ex) {
             isReading = false;
             notifyOnRespondedListeners(ServerResponse.IsAliveResponse(ServerNew.StatusCodes.TIMEOUT).toString());
-        } finally{
-            isReading = false;
-        }
+        } 
     }
     
-    public Socket_c Send(String request){
+    public Socket_c Send(JSONObject request){
         return send(request);
     }
     
-    public Socket_c Send(String request, SocketRespondedListener l){
+    public Socket_c Send(JSONObject request, SocketRespondedListener l){
+        try{
+            String id = genRequestID();
+            request.put(ServerNew.Keys.REQUEST_ID, id);
+            l._requestID = id;
+            l._once = true;
+        }catch(JSONException ex){}
+        
         addListener(l);
         return send(request);
         
     }
     
-    private Socket_c send(String request){
+    private Socket_c send(JSONObject request){
         mOut.println(request);
         return this;
     }
     
     public Socket_c addListener(SocketRespondedListener l){
-        l.bindSocket(mOut);
+        l.bindSocket(this);
         listeners.add(l);
         return this;
     }
     
     private void notifyOnRespondedListeners(String response){
-        ArrayList<Integer> remove = new ArrayList();
-        System.out.println("Start: "+listeners.size());
+        boolean specific = false;
+        String request_id = "";
+        JSONObject jsonResponse = ServerResponse.ConnectionResponse(ServerNew.StatusCodes.NOT_IMPLEMENTED).toJSONObject();
+        try{
+            jsonResponse = new JSONObject(response);
+            if(jsonResponse.has(ServerNew.Keys.REQUEST_ID)){
+                specific = true;
+                request_id = jsonResponse.getString(ServerNew.Keys.REQUEST_ID);
+                System.out.println(response);
+            }
+        }catch(JSONException ex){ }
         
-        for(int i = 0; i < listeners.size(); i++){
-            listeners.get(i).postResponse(response);
-            if(listeners.get(i).once())
-                remove.add(Integer.valueOf(i));
+        Iterator<SocketRespondedListener> it = listeners.iterator();
+        while(it.hasNext()){
+            SocketRespondedListener l = it.next();
+            if(specific){
+                if(request_id.equals(l.getRequestID())){
+                    l.postResponse(jsonResponse);
+                    it.remove();
+                    break;
+                }
+            }else   
+                l.postResponse(jsonResponse);
+
+            if(l.once()){
+                it.remove();
+            }
         }
-        System.out.println("Removing: "+remove.size());
         
-        for(int i = 0; i < remove.size(); i++){
-            listeners.remove(remove.get(i).intValue());
-        }
-        
-        System.out.println("End: "+listeners.size());
-        
+       
     }
     
     public Socket socket(){
         return mSocket;
+    }
+    
+    public void closeSocket(){
+        try{
+            mSocket.close();
+        }catch(IOException ex){}
+    }
+    
+    private String genRequestID(){
+        return String.valueOf(mRequestID++);
     }
     
     private class CloseSocketTask extends TimerTask{
@@ -128,7 +168,8 @@ public class Socket_c extends SocketRespondedListener{
         public void run(){
             try {
                 mSocket.close();
-                mTimer.cancel();
+                this.cancel();
+                mTimer.purge();
             } catch (IOException ex) {
                 System.out.println(ex.getMessage());
             }
