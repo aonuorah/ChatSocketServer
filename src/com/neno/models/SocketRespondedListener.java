@@ -6,6 +6,7 @@
 
 package com.neno.models;
 
+import java.io.IOException;
 import org.json.JSONObject;
 
 /**
@@ -15,10 +16,10 @@ import org.json.JSONObject;
 public class SocketRespondedListener{
     protected boolean _once;
     protected String _requestID;
-    private Socket_c _socket;
+    private SocketObj _socket;
 
     public SocketRespondedListener(){
-
+        this._once = false;
     }
 
     public SocketRespondedListener(boolean once){
@@ -38,10 +39,13 @@ public class SocketRespondedListener{
     }
     
     public void closeSocket(){
-        _socket.closeSocket();
+        try{
+            _socket.socket().close();
+        }catch(IOException ex){}
+        
     }
     
-    protected void bindSocket(Socket_c socket){
+    protected void bindSocket(SocketObj socket){
         _socket = socket;
     }
     

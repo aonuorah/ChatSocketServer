@@ -7,16 +7,16 @@
 package com.neno.models;
 
 import com.neno.classes.ServerResponse;
-import com.neno.networking.ServerNew;
+import com.neno.networking.Server;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.json.JSONException;
@@ -26,7 +26,7 @@ import org.json.JSONObject;
  *
  * @author nedu
  */
-public class Socket_c extends SocketRespondedListener{
+public class SocketObj extends SocketRespondedListener{
     Socket mSocket;
     String mLastActivityStamp;
     PrintWriter mOut;
@@ -34,21 +34,29 @@ public class Socket_c extends SocketRespondedListener{
     Timer mTimer;
     TimerTask mCloseSocketTask;
     boolean mTimerIsSet;
-    ArrayList<SocketRespondedListener> listeners ;
+    CopyOnWriteArrayList<SocketRespondedListener> listeners ;
     private boolean isReading;
     private int mRequestID;
     
     
-    public Socket_c(Socket socket){
+    public SocketObj(Socket socket){
         try {
             mSocket = socket;
             mOut = new PrintWriter(mSocket.getOutputStream(), true);
             mIn = new BufferedReader(new InputStreamReader(mSocket.getInputStream()));
-            listeners = new ArrayList();
-            mTimer = new Timer();
+            listeners = new CopyOnWriteArrayList();
+            //mTimer = new Timer();
         } catch (IOException ex) {
-            Logger.getLogger(Socket_c.class.getName()).log(Level.SEVERE, null, ex);
+            Logger.getLogger(SocketObj.class.getName()).log(Level.SEVERE, null, ex);
         }
+    }
+    
+    @Override
+    public void closeSocket(){
+        try{
+            mSocket.close();
+        }catch(IOException ex){}
+        
     }
     
     public void Read(){
@@ -64,6 +72,7 @@ public class Socket_c extends SocketRespondedListener{
         try {
             mTimerIsSet = false;
             if(timeout != 0){
+                mTimer = new Timer();
                 mCloseSocketTask = new CloseSocketTask();
                 mTimer.schedule(mCloseSocketTask, timeout);
                 mTimerIsSet = true;
@@ -75,27 +84,29 @@ public class Socket_c extends SocketRespondedListener{
                     if(mTimerIsSet){
                         mCloseSocketTask.cancel();
                         mTimer.purge();
+                        mTimer.cancel();
                     }
                     
                     notifyOnRespondedListeners(line);
                 }
                 isReading = false;
+                notifyOnRespondedListeners(ServerResponse.IsAliveResponse(Server.StatusCodes.GONE).toString());
             }
             
         } catch (IOException ex) {
             isReading = false;
-            notifyOnRespondedListeners(ServerResponse.IsAliveResponse(ServerNew.StatusCodes.TIMEOUT).toString());
+            notifyOnRespondedListeners(ServerResponse.IsAliveResponse(Server.StatusCodes.TIMEOUT).toString());
         } 
     }
     
-    public Socket_c Send(JSONObject request){
+    public SocketObj Send(JSONObject request){
         return send(request);
     }
     
-    public Socket_c Send(JSONObject request, SocketRespondedListener l){
+    public SocketObj Send(JSONObject request, SocketRespondedListener l){
         try{
             String id = genRequestID();
-            request.put(ServerNew.Keys.REQUEST_ID, id);
+            request.put(Server.Keys.REQUEST_ID, id);
             l._requestID = id;
             l._once = true;
         }catch(JSONException ex){}
@@ -105,12 +116,12 @@ public class Socket_c extends SocketRespondedListener{
         
     }
     
-    private Socket_c send(JSONObject request){
+    private SocketObj send(JSONObject request){
         mOut.println(request);
         return this;
     }
     
-    public Socket_c addListener(SocketRespondedListener l){
+    public SocketObj addListener(SocketRespondedListener l){
         l.bindSocket(this);
         listeners.add(l);
         return this;
@@ -119,13 +130,12 @@ public class Socket_c extends SocketRespondedListener{
     private void notifyOnRespondedListeners(String response){
         boolean specific = false;
         String request_id = "";
-        JSONObject jsonResponse = ServerResponse.ConnectionResponse(ServerNew.StatusCodes.NOT_IMPLEMENTED).toJSONObject();
+        JSONObject jsonResponse = ServerResponse.ConnectionResponse(Server.StatusCodes.NOT_IMPLEMENTED).toJSONObject();
         try{
             jsonResponse = new JSONObject(response);
-            if(jsonResponse.has(ServerNew.Keys.REQUEST_ID)){
+            if(jsonResponse.has(Server.Keys.REQUEST_ID)){
                 specific = true;
-                request_id = jsonResponse.getString(ServerNew.Keys.REQUEST_ID);
-                System.out.println(response);
+                request_id = jsonResponse.getString(Server.Keys.REQUEST_ID);
             }
         }catch(JSONException ex){ }
         
@@ -135,29 +145,22 @@ public class Socket_c extends SocketRespondedListener{
             if(specific){
                 if(request_id.equals(l.getRequestID())){
                     l.postResponse(jsonResponse);
-                    it.remove();
+                    listeners.remove(l);
                     break;
                 }
-            }else   
+            }else {  
                 l.postResponse(jsonResponse);
-
-            if(l.once()){
-                it.remove();
+                if(l.once()){
+                    listeners.remove(l);
+                }
             }
         }
-        
-       
     }
     
     public Socket socket(){
         return mSocket;
     }
     
-    public void closeSocket(){
-        try{
-            mSocket.close();
-        }catch(IOException ex){}
-    }
     
     private String genRequestID(){
         return String.valueOf(mRequestID++);
@@ -170,6 +173,7 @@ public class Socket_c extends SocketRespondedListener{
                 mSocket.close();
                 this.cancel();
                 mTimer.purge();
+                mTimer.cancel();
             } catch (IOException ex) {
                 System.out.println(ex.getMessage());
             }

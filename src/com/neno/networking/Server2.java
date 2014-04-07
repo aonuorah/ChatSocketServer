@@ -13,15 +13,11 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.HashMap;
 import com.neno.classes.ServerResponse;
-import com.neno.models.Socket_c;
-import com.neno.models.SocketRespondedListener;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Map;
 import java.util.Timer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -29,109 +25,37 @@ import org.json.JSONObject;
  *
  * @author nedu
  */
-public class ServerNew implements Runnable{
-    private final static HashMap<String, Socket_c> mSockets = new HashMap();
+@Deprecated
+public class Server2 implements Runnable{
     private static HashMap<String, Socket> activeSockets = new HashMap();
-    private static Socket_c mSocket;
+    private Socket socket;
     Timer checkAliveTimeoutTimer;
     
-    public ServerNew(Socket _socket){
-        mSocket = new Socket_c(_socket);
+    public Server2(Socket _socket){
+        socket = _socket;
     }
     
     @Override
     public void run() {
         try{
-            init2();
+            init(socket);
         }catch(IOException ex){
             System.out.println(ex.getMessage());
         }
     }
     
-    private void init2()throws IOException{
-        System.out.println("Connection received from " + mSocket.socket().getInetAddress());
-        
-        mSocket.addListener(new SocketRespondedListener(true){
-            @Override
-            public void postResponse(JSONObject response){
-                super.postResponse(response);
-                processConnectionRequest(this, response);
-            }
-        }).Read();
-    }
-    /*
-    {"code":"11","name":"a"}
-    {"code":"909","status":"200"}
-    {"code":"909","status":"400"}
-    */
-    private void processConnectionRequest(final SocketRespondedListener l, JSONObject response){
-        boolean closeSocket = true;
-        try {
-            if(response.getString(Keys.CODE).equals(RequestCodes.CONNECT)){
-                final String name = response.getString(Keys.NAME).trim();
-                if(!name.isEmpty()){
-                    closeSocket = false;
-                    if(!mSockets.containsKey(name)){
-                        acceptConnection(name);
-                    }else{
-                        mSockets.get(name).Send(ServerResponse.IsAliveRequest().toJSONObject(), 
-                                                new SocketRespondedListener(){
-                                                    
-                                                        @Override
-                                                        public void postResponse(JSONObject response2){
-                                                            super.postResponse(response2);
-                                                            try {
-                                                                if(response2.getString(Keys.CODE).equals(ResponseCodes.IS_ALIVE)){
-                                                                    if(response2.getString(Keys.STATUS).equals(StatusCodes.SUCCESS)){
-                                                                        rejectConnection(StatusCodes.UNAUTHORIZED);
-
-                                                                    }else{
-                                                                        this.closeSocket();
-                                                                        acceptConnection(name);
-                                                                    }
-                                                                }
-                                                            } catch (JSONException ex) {
-                                                                Logger.getLogger(ServerNew.class.getName()).log(Level.SEVERE, null, ex);
-                                                            }
-                                                        }
-                                                    }).Read(3);
-                    }
-                }
-            }
-        } catch (JSONException ex) {}
-        finally{
-            if(closeSocket){
-                rejectSocket(response);
-            }
-        }
-    }
-    
-    private void acceptConnection(String name){
-        mSockets.put(name, mSocket);
-        mSocket.Send(ServerResponse.ConnectionResponse(StatusCodes.ACCEPTED).toJSONObject());
-    }
-    
-    private void rejectConnection(String code){
-        mSocket.Send(ServerResponse.ConnectionResponse(code).toJSONObject());
-        mSocket.closeSocket();
-    }
-    
-    private void rejectSocket(JSONObject response){
-        mSocket.Send(response);
-        mSocket.closeSocket();
-    }
-    
     private void init(Socket _socket)throws IOException{
-        /*ServerResponse response = new ServerResponse(ServerResponse.CONNECTION_REQUEST);;
+        ServerResponse response = new ServerResponse(Response.CONNECTION_REQUEST);;
         System.out.println("Connection received from " + socket.getInetAddress());
             
         String[] command;
         String socket_id = "";
         boolean connectionIsValid = false;
-        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));;
         PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
         
         try {
+            
             String commandLine = in.readLine();
             System.out.println(commandLine);
             command = commandLine.split(" ");
@@ -147,12 +71,12 @@ public class ServerNew implements Runnable{
                         }else{
                             isAlive(activeSockets.remove(socket_id));
                             connectionIsValid = false;
-                            response.put("status", ServerResponse.UNAUTHORIZED);
+                            response.put("status", Response.UNAUTHORIZED);
                         }
                     }
                     
                     if(connectionIsValid){
-                        response.put("status", ServerResponse.SUCCESS);
+                        response.put("status", Response.SUCCESS);
                         for(Map.Entry<String, Socket> s : activeSockets.entrySet()){
                             response.append("online", s.getKey());//append list of online users to json
                         }
@@ -161,7 +85,7 @@ public class ServerNew implements Runnable{
                 }
             }
             if(!response.has("status")){
-                response.put("status", ServerResponse.NOT_IMPLEMENTED);
+                response.put("status", Response.NOT_IMPLEMENTED);
             }else{
                 response.put("active", String.valueOf(activeSockets.size()));
             }
@@ -177,7 +101,7 @@ public class ServerNew implements Runnable{
             }else{
                 putOnline(socket, socket_id);
             }
-        }*/
+        }
     }
     
     private void putOnline(Socket _socket, String socket_id){
@@ -202,10 +126,10 @@ public class ServerNew implements Runnable{
                         JSONObject j = new JSONObject(receivedText);
                         String action = j.getString("code");
                         switch(action){
-                            case ServerResponse.ACTION_CONTROL:
+                            case Response.ACTION_CONTROL:
                                 break;
                                 
-                            case ServerResponse.ACTION_SEND_MESSAGE:
+                            case Response.ACTION_SEND_MESSAGE:
                                 
                                     receivedText = "";
                                     receiver = j.getString("to");
@@ -224,8 +148,8 @@ public class ServerNew implements Runnable{
                                         Socket s = activeSockets.get(receiver);
                                         if(!s.isClosed()){
                                             PrintWriter r_out = new PrintWriter(s.getOutputStream(), true);
-                                            r_out.println(new ServerResponse(ServerResponse.NEW_MESSAGE).put("from",socket_id).put("message",message).put("stamp", stamp));
-                                            response = new ServerResponse(ServerResponse.SUCCESS);
+                                            r_out.println(new ServerResponse(Response.NEW_MESSAGE).put("from",socket_id).put("message",message).put("stamp", stamp));
+                                            response = new ServerResponse(Response.SUCCESS);
                                         }else{
                                             activeSockets.remove(receiver);
                                         }
@@ -238,11 +162,11 @@ public class ServerNew implements Runnable{
                         
                     }catch(JSONException ex){
                         System.out.println(ex.getMessage());
-                        response = new ServerResponse(ServerResponse.BAD_REQUEST);
+                        response = new ServerResponse(Response.BAD_REQUEST);
                     }
                     
                     if(response == null){
-                        response = new ServerResponse(ServerResponse.NOT_FOUND);
+                        response = new ServerResponse(Response.NOT_FOUND);
                     }
                     out.println(response);
                     response = null;
@@ -262,7 +186,7 @@ public class ServerNew implements Runnable{
             if(!_socket.getKey().equals(socket_id)){
                 try{
                     PrintWriter r_out = new PrintWriter(_socket.getValue().getOutputStream(), true);
-                    r_out.println(new ServerResponse(ServerResponse.USER_UPDATE_ONLINE).put("id", socket_id));
+                    r_out.println(new ServerResponse(Response.USER_UPDATE_ONLINE).put("id", socket_id));
                 }catch(IOException ex){
                     System.out.println(ex.getMessage());
                 }
@@ -275,7 +199,7 @@ public class ServerNew implements Runnable{
         for(Map.Entry<String, Socket> _socket : activeSockets.entrySet()){
             try{
                 PrintWriter r_out = new PrintWriter(_socket.getValue().getOutputStream(), true);
-                r_out.println(new ServerResponse(ServerResponse.USER_UPDATE_OFFLINE).put("id", socket_id));
+                r_out.println(new ServerResponse(Response.USER_UPDATE_OFFLINE).put("id", socket_id));
             }catch(IOException ex){
                 System.out.println(ex.getMessage());
             }
@@ -284,41 +208,51 @@ public class ServerNew implements Runnable{
     }
     
     private boolean isAlive(Socket s){
+        /*PrintWriter r_out;
+        try {
+            r_out = new PrintWriter(s.getOutputStream(), true);
+            r_out.println(new ServerResponse(Response.IS_ALIVE));
+            BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
+            String line, response = "";
+            while((line = in.readLine()) != null){
+                response += line;
+                if(!in.ready()){
+                    JSONObject r = new JSONObject(response);
+                    if(r.getString("code").equals(Response.IS_ALIVE))
+                }
+            }
+        } catch (IOException | JSONException ex) {
+            System.out.println(ex.getMessage());
+        }
         
+        checkAliveTimeoutTimer = new Timer();
+        checkAliveTimeoutTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+              // Your database code here
+            }
+        }, 5*1000);
+        */
         return true;
     }
     
-    
-    public class RequestCodes{
-        
-        public static final String SEND_MESSAGE = "12";
-        public static final String CONTROL = "10";
-        public static final String CONNECT = "11";
-    }
-    
-    public class ResponseCodes{
+    private class Response{
+        public static final String ACTION_SEND_MESSAGE = "12";
+        public static final String ACTION_CONTROL = "10";
+        public static final String ACTION_CONNECT = "11";
+
+        public static final String SUCCESS = "200";
+        public static final String NOT_IMPLEMENTED = "501";
+        public static final String NOT_FOUND = "404";
+        public static final String UNAUTHORIZED = "401";
+        public static final String BAD_REQUEST = "400";
+
+        public static final String CONNECTION_REQUEST = "901";
         public static final String NEW_MESSAGE = "902";
         public static final String SENT_MESSAGE_UPDATE = "903";
         public static final String USER_UPDATE_ONLINE = "904";
         public static final String USER_UPDATE_OFFLINE = "905";
         public static final String IS_ALIVE = "909";
-    }
-    
-    public class StatusCodes{
-        public static final String SUCCESS = "200";
-        public static final String ACCEPTED = "202";
-        public static final String NOT_IMPLEMENTED = "501";
-        public static final String NOT_FOUND = "404";
-        public static final String UNAUTHORIZED = "401";
-        public static final String BAD_REQUEST = "400";
-        public static final String TIMEOUT = "408";
-    }
-    
-    public class Keys{
-        public static final String CODE = "code";
-        public static final String STATUS = "status";
-        public static final String NAME = "name";
-        public static final String REQUEST_ID = "request_id";
     }
     
 }
