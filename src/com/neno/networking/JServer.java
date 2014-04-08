@@ -35,8 +35,7 @@ public class JServer {
             listener = new ServerSocket(_port);
             while (true) {
                 Socket socket = listener.accept();
-                Server connection = new Server(socket);
-                new Thread(connection).start();
+                new Thread(new Server(socket)).start();
             }
         }finally{
             listener.close();

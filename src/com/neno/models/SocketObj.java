@@ -17,8 +17,6 @@ import java.util.Iterator;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -27,28 +25,20 @@ import org.json.JSONObject;
  * @author nedu
  */
 public class SocketObj extends SocketRespondedListener{
-    Socket mSocket;
-    String mLastActivityStamp;
-    PrintWriter mOut;
-    BufferedReader mIn;
-    Timer mTimer;
-    TimerTask mCloseSocketTask;
-    boolean mTimerIsSet;
-    CopyOnWriteArrayList<SocketRespondedListener> listeners ;
+    private Socket mSocket;
+    private CopyOnWriteArrayList<SocketRespondedListener> listeners ;
+    private PrintWriter mOut;
+    private BufferedReader mIn;
+    private Timer mTimer;
+    private TimerTask mCloseSocketTask;
+    private boolean mTimerIsSet;
     private boolean isReading;
     private int mRequestID;
     
     
     public SocketObj(Socket socket){
-        try {
-            mSocket = socket;
-            mOut = new PrintWriter(mSocket.getOutputStream(), true);
-            mIn = new BufferedReader(new InputStreamReader(mSocket.getInputStream()));
-            listeners = new CopyOnWriteArrayList();
-            //mTimer = new Timer();
-        } catch (IOException ex) {
-            Logger.getLogger(SocketObj.class.getName()).log(Level.SEVERE, null, ex);
-        }
+        mSocket = socket;
+        listeners = new CopyOnWriteArrayList();
     }
     
     @Override
@@ -62,6 +52,7 @@ public class SocketObj extends SocketRespondedListener{
     public void Read(){
         read(0);
     }
+    
     
     public void Read(int timeout){
         read(timeout * 1000);
@@ -80,6 +71,9 @@ public class SocketObj extends SocketRespondedListener{
             
             if(!isReading){
                 isReading = true;
+                if(mIn == null){
+                    mIn = new BufferedReader(new InputStreamReader(mSocket.getInputStream()));
+                }
                 while((line = mIn.readLine()) != null){
                     if(mTimerIsSet){
                         mCloseSocketTask.cancel();
@@ -117,6 +111,11 @@ public class SocketObj extends SocketRespondedListener{
     }
     
     private SocketObj send(JSONObject request){
+        if(mOut == null){
+            try {
+                mOut = new PrintWriter(mSocket.getOutputStream(), true);
+            } catch (IOException ex) {}
+        }
         mOut.println(request);
         return this;
     }

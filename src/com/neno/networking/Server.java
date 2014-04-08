@@ -27,7 +27,7 @@ import org.json.JSONObject;
  */
 public class Server implements Runnable{
     private final static HashMap<String, SocketObj> mSockets = new HashMap();
-    private static SocketObj mSocket;
+    private final SocketObj mSocket;
     
     public Server(Socket _socket){
         mSocket = new SocketObj(_socket);
@@ -36,13 +36,13 @@ public class Server implements Runnable{
     @Override
     public void run() {
         try{
-            init2();
+            init();
         }catch(IOException ex){
             System.out.println(ex.getMessage());
         }
     }
     
-    private void init2()throws IOException{
+    private void init()throws IOException{
         System.out.println("Connection received from " + mSocket.socket().getInetAddress());
         
         mSocket.addListener(new SocketRespondedListener(true){
@@ -185,11 +185,13 @@ public class Server implements Runnable{
     private void rejectConnection(String code){
         mSocket.Send(ServerResponse.ConnectionResponse(code).toJSONObject());
         mSocket.closeSocket();
+        System.out.println("Rejected connection from " + mSocket.socket().getInetAddress());
     }
     
     private void rejectSocket(JSONObject response){
         mSocket.Send(response);
         mSocket.closeSocket();
+        System.out.println("Rejected connection from " + mSocket.socket().getInetAddress());
     }
     
     
