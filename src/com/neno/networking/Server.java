@@ -51,7 +51,7 @@ public class Server implements Runnable{
                 super.postResponse(response);
                 processConnectionRequest(this, response);
             }
-        }).Read();
+        }).Read(3);
     }
     
     private void processConnectionRequest(final SocketRespondedListener l, JSONObject response){
